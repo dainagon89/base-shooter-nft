@@ -37,8 +37,8 @@ export function NftGallery() {
 
         const items: OwnedNft[] = [];
 
-        for (let i = 0n; i < balance; i++) {
-          const tokenId = (await publicClient.readContract({
+    for (let i = BigInt(0); i < balance; i++) {
+      const tokenId = (await publicClient.readContract({
             address: CONTRACT_ADDRESS,
             abi: shooterRewardAbi,
             functionName: 'tokenOfOwnerByIndex',
