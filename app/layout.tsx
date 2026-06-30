@@ -18,6 +18,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: 'Base Shooter NFT',
   description: '画面をドラッグして敵を撃つシューティングゲーム。ハイスコアでNFTをミントしよう。',
+  other: {
+    'base:app_id': '6a435e12f20fd3db982cf7d5',
+  },
 };
 
 export default function RootLayout({
