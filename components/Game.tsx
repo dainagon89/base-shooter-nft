@@ -1,8 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAccount, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
+import { concat, encodeFunctionData } from 'viem';
+import {
+  useAccount,
+  useSendTransaction,
+  useWaitForTransactionReceipt,
+} from 'wagmi';
 import { CONTRACT_ADDRESS, shooterRewardAbi } from '@/lib/contract';
+import { BUILDER_CODE_DATA_SUFFIX } from '@/lib/builderCode';
 import { TARGET_CHAIN_ID } from '@/lib/wagmiConfig';
 
 const MINT_THRESHOLD = 100;
@@ -45,7 +51,12 @@ export function Game() {
   const [finalScore, setFinalScore] = useState(0);
   const [hasMinted, setHasMinted] = useState(false);
 
-  const { data: hash, writeContract, isPending: isMinting, error: mintError } = useWriteContract();
+  const {
+    data: hash,
+    sendTransaction,
+    isPending: isMinting,
+    error: mintError,
+  } = useSendTransaction();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
   useEffect(() => {
@@ -167,11 +178,18 @@ export function Game() {
   };
 
   const onMint = () => {
-    writeContract({
-      address: CONTRACT_ADDRESS,
+    // 通常のミント呼び出しデータを作る
+    const callData = encodeFunctionData({
       abi: shooterRewardAbi,
       functionName: 'mintReward',
       args: [BigInt(finalScore)],
+    });
+
+    // 末尾にBuilder Codeの識別データ（ERC-8021）を付けて送信する。
+    // コントラクトはこの余分なデータを無視して通常通り動作する。
+    sendTransaction({
+      to: CONTRACT_ADDRESS,
+      data: concat([callData, BUILDER_CODE_DATA_SUFFIX]),
     });
   };
 
