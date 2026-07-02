@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from 'wagmi';
 import { CONTRACT_ADDRESS, shooterRewardAbi } from '@/lib/contract';
 import { TARGET_CHAIN_ID } from '@/lib/wagmiConfig';
+import { AdviceButton } from '@/components/AdviceButton';
 
 const MINT_THRESHOLD = 100;
 const CANVAS_WIDTH = 360;
@@ -249,6 +250,7 @@ export function Game() {
                 {mintError && <span className="text-red-400">ミントに失敗しました</span>}
               </p>
             )}
+<AdviceButton score={finalScore} />
 
             <button
               onClick={startGame}
