@@ -1,4 +1,4 @@
-import { createMcpHandler } from '@vercel/mcp-adapter';
+import createMcpHandler from '@vercel/mcp-adapter';
 import { z } from 'zod';
 import { createPublicClient, http } from 'viem';
 import { base } from 'viem/chains';
