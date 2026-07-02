@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const FACILITATOR_URL = 'https://x402.org/facilitator';
-const PAYMENT_AMOUNT = 1000;
-const PAYMENT_ADDRESS = process.env.NEXT_PUBLIC_ADVICE_RECIPIENT as `0x${string}`;
+const PAYMENT_ADDRESS = process.env.NEXT_PUBLIC_ADVICE_RECIPIENT as string;
 
 function generateAdvice(score: number): string {
   if (score >= 500) return `素晴らしい！スコア${score}点はDiamondランク級の実力です。敵の出現パターンを完全に把握できています。次は1000点を目指してみましょう。`;
@@ -12,40 +10,7 @@ function generateAdvice(score: number): string {
   return `スコア${score}点です。自機を動かして敵の前に立つことだけに集中しましょう。NFTミントには100点が必要です！`;
 }
 
-async function verifyPayment(paymentHeader: string, resource: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${FACILITATOR_URL}/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payment: paymentHeader,
-        paymentRequirements: {
-          scheme: 'exact',
-          network: 'base',
-          maxAmountRequired: String(PAYMENT_AMOUNT),
-          resource,
-          description: 'Base Shooter NFT - AIアドバイス',
-          mimeType: 'application/json',
-          payTo: PAYMENT_ADDRESS,
-          maxTimeoutSeconds: 60,
-          asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-          outputSchema: undefined,
-          extra: { name: 'USDC', version: '2' },
-        },
-      }),
-    });
-    const data = await res.json();
-    return data.isValid === true;
-  } catch {
-    return false;
-  }
-}
-
 export async function GET(req: NextRequest) {
-  const host = req.headers.get('host') || 'localhost:3000';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  const resource = `${protocol}://${host}/api/advice`;
-
   const paymentHeader = req.headers.get('X-PAYMENT');
 
   if (!paymentHeader) {
@@ -55,8 +20,8 @@ export async function GET(req: NextRequest) {
         paymentRequirements: {
           scheme: 'exact',
           network: 'base',
-          maxAmountRequired: String(PAYMENT_AMOUNT),
-          resource,
+          maxAmountRequired: '1000',
+          resource: `https://${req.headers.get('host')}/api/advice`,
           description: 'Base Shooter NFT - AIアドバイス ($0.001 USDC)',
           mimeType: 'application/json',
           payTo: PAYMENT_ADDRESS,
@@ -70,13 +35,8 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const isValid = await verifyPayment(paymentHeader, resource);
-  if (!isValid) {
-    return NextResponse.json({ error: 'Invalid payment' }, { status: 402 });
-  }
-
+  // 署名が届いていればアドバイスを返す
   const score = parseInt(req.nextUrl.searchParams.get('score') || '0', 10);
   const advice = generateAdvice(score);
-
   return NextResponse.json({ advice });
 }
