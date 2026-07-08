@@ -317,19 +317,19 @@ export function Game() {
               </button>
             )}
 
-            {zoraStatus === 'done' && zoraTxHash && (
-              <p className="text-xs text-emerald-400">
-                Zoraコイン作成成功 ✓{' '}
-                
-                  href={`https://basescan.org/tx/${zoraTxHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  確認する
-                </a>
-              </p>
-            )}
+           {zoraStatus === 'done' && zoraTxHash && (
+  <p className="text-xs text-emerald-400">
+    Zoraコイン作成成功 ✓{' '}
+    <a
+      href={`https://basescan.org/tx/${zoraTxHash}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline"
+    >
+      確認する
+    </a>
+  </p>
+)}
 
             {zoraStatus === 'error' && (
               <p className="text-xs text-red-400">Zoraへの作成に失敗しました</p>
