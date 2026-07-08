@@ -6,15 +6,12 @@ import {
   useAccount,
   useSendTransaction,
   useWaitForTransactionReceipt,
-  useWalletClient,
-  usePublicClient,
 } from 'wagmi';
 import { CONTRACT_ADDRESS, shooterRewardAbi } from '@/lib/contract';
 import { BUILDER_CODE_DATA_SUFFIX } from '@/lib/builderCode';
 import { TARGET_CHAIN_ID } from '@/lib/wagmiConfig';
 
 const MINT_THRESHOLD = 100;
-const ZORA_THRESHOLD = 300;
 const CANVAS_WIDTH = 360;
 const CANVAS_HEIGHT = 480;
 const PLAYER_WIDTH = 36;
@@ -34,9 +31,7 @@ interface Rect {
 }
 
 export function Game() {
-  const { isConnected, chainId, address } = useAccount();
-  const { data: walletClient } = useWalletClient();
-  const publicClient = usePublicClient();
+  const { isConnected, chainId } = useAccount();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
@@ -55,8 +50,6 @@ export function Game() {
   const [lives, setLives] = useState(STARTING_LIVES);
   const [finalScore, setFinalScore] = useState(0);
   const [hasMinted, setHasMinted] = useState(false);
-  const [zoraStatus, setZoraStatus] = useState<'idle' | 'minting' | 'done' | 'error'>('idle');
-  const [zoraTxHash, setZoraTxHash] = useState<string | null>(null);
 
   const {
     data: hash,
@@ -82,12 +75,11 @@ export function Game() {
     setScore(0);
     setLives(STARTING_LIVES);
     setHasMinted(false);
-    setZoraStatus('idle');
-    setZoraTxHash(null);
     gameStateRef.current = 'playing';
     setGameState('playing');
   }, []);
 
+  // ゲームループ（canvasへの描画と当たり判定）
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -96,11 +88,13 @@ export function Game() {
 
     const loop = (time: number) => {
       if (gameStateRef.current === 'playing') {
+        // 自動発射
         if (time - lastFireRef.current > FIRE_INTERVAL_MS) {
           lastFireRef.current = time;
           bulletsRef.current.push({ x: playerXRef.current - 2, y: PLAYER_Y - 6, w: 4, h: 10 });
         }
 
+        // 敵スポーン（時間経過で間隔が短くなる＝難易度上昇）
         if (time - lastSpawnRef.current > spawnIntervalRef.current) {
           lastSpawnRef.current = time;
           spawnIntervalRef.current = Math.max(400, spawnIntervalRef.current - 12);
@@ -108,12 +102,15 @@ export function Game() {
           enemiesRef.current.push({ x: Math.random() * (CANVAS_WIDTH - w), y: -20, w, h: 20 });
         }
 
+        // 弾の移動
         bulletsRef.current.forEach((b) => (b.y -= BULLET_SPEED));
         bulletsRef.current = bulletsRef.current.filter((b) => b.y > -20);
 
+        // 敵の移動
         const enemySpeed = 1.2 + scoreRef.current / 400;
         enemiesRef.current.forEach((e) => (e.y += enemySpeed));
 
+        // 当たり判定: 弾 vs 敵
         const survivors: Rect[] = [];
         for (const e of enemiesRef.current) {
           let hit = false;
@@ -131,6 +128,7 @@ export function Game() {
         }
         enemiesRef.current = survivors;
 
+        // 画面下に到達した敵 → ライフ減少
         const remaining: Rect[] = [];
         for (const e of enemiesRef.current) {
           if (e.y > CANVAS_HEIGHT) {
@@ -149,6 +147,7 @@ export function Game() {
         }
       }
 
+      // 描画
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.fillStyle = '#0A0B0D';
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -179,55 +178,19 @@ export function Game() {
   };
 
   const onMint = () => {
+    // 通常のミント呼び出しデータを作る
     const callData = encodeFunctionData({
       abi: shooterRewardAbi,
       functionName: 'mintReward',
       args: [BigInt(finalScore)],
     });
 
+    // 末尾にBuilder Codeの識別データ（ERC-8021）を付けて送信する。
+    // コントラクトはこの余分なデータを無視して通常通り動作する。
     sendTransaction({
       to: CONTRACT_ADDRESS,
       data: concat([callData, BUILDER_CODE_DATA_SUFFIX]),
     });
-  };
-
-  const onZoraMint = async () => {
-    if (!walletClient || !publicClient || !address) return;
-    setZoraStatus('minting');
-
-    try {
-      const { createCoin, CreateConstants } = await import('@zoralabs/coins-sdk');
-
-      const rank =
-        finalScore >= 500 ? 'Diamond' :
-        finalScore >= 300 ? 'Gold' : 'Silver';
-
-      const metadataUri = `data:application/json;base64,${btoa(JSON.stringify({
-        name: `Base Shooter ${rank} - Score ${finalScore}`,
-        description: `A ${rank} rank score of ${finalScore} points earned in Base Shooter NFT game. Fully on-chain.`,
-        image: `data:image/svg+xml;base64,${btoa(`<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='400' height='400' fill='#0A0B0D'/><circle cx='200' cy='150' r='60' fill='${finalScore >= 500 ? '#7DD3FC' : finalScore >= 300 ? '#FACC15' : '#D1D5DB'}'/><text x='200' y='260' font-size='28' fill='white' text-anchor='middle' font-family='monospace'>${rank}</text><text x='200' y='300' font-size='20' fill='#8A8F98' text-anchor='middle' font-family='monospace'>SCORE ${finalScore}</text></svg>`)}`,
-      }))}`;
-
-      const result = await createCoin({
-        call: {
-          creator: address,
-          name: `Base Shooter ${rank} ${finalScore}pts`,
-          symbol: `BSR${rank.toUpperCase().slice(0, 2)}`,
-          metadata: { type: 'RAW_URI', uri: metadataUri },
-          currency: CreateConstants.ContentCoinCurrencies.ZORA,
-          chainId: 8453,
-          startingMarketCap: CreateConstants.StartingMarketCaps.LOW,
-        },
-        walletClient,
-        publicClient,
-      });
-
-      setZoraTxHash(result.hash);
-      setZoraStatus('done');
-    } catch (error) {
-      console.error('Zora mint error:', error);
-      setZoraStatus('error');
-    }
   };
 
   const canMint =
@@ -237,18 +200,15 @@ export function Game() {
     finalScore >= MINT_THRESHOLD &&
     !hasMinted;
 
-  const canZoraMint =
-  gameState === 'gameover' &&
-  isConnected &&
-  chainId === TARGET_CHAIN_ID &&
-  finalScore >= ZORA_THRESHOLD &&
-  zoraStatus !== 'done';
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between font-mono text-sm text-base-mist">
-        <span>SCORE <span className="text-white">{score}</span></span>
-        <span>LIVES <span className="text-white">{'♥'.repeat(Math.max(lives, 0))}</span></span>
+        <span>
+          SCORE <span className="text-white">{score}</span>
+        </span>
+        <span>
+          LIVES <span className="text-white">{'♥'.repeat(Math.max(lives, 0))}</span>
+        </span>
       </div>
 
       <div className="relative overflow-hidden rounded-2xl border border-base-line">
@@ -266,7 +226,6 @@ export function Game() {
             <p className="max-w-xs text-sm text-base-mist">
               画面をドラッグして自機を動かそう。弾は自動発射、敵を倒してスコアを稼げ。
             </p>
-            <p className="text-xs text-base-mist">300点以上でZoraにコインを作れます</p>
             <button
               onClick={startGame}
               className="focus-ring rounded-full bg-base-blue px-8 py-3 font-semibold text-white transition hover:bg-blue-500"
@@ -282,7 +241,9 @@ export function Game() {
             <p className="text-sm text-base-mist">最終スコア</p>
 
             {finalScore < MINT_THRESHOLD && (
-              <p className="max-w-xs text-xs text-base-mist">NFTミントには{MINT_THRESHOLD}点以上が必要です。</p>
+              <p className="max-w-xs text-xs text-base-mist">
+                NFTミントには{MINT_THRESHOLD}点以上が必要です。
+              </p>
             )}
 
             {finalScore >= MINT_THRESHOLD && !isConnected && (
@@ -301,38 +262,10 @@ export function Game() {
 
             {(isConfirming || isConfirmed || mintError) && (
               <p className="text-xs">
-                {isConfirming && <span className="text-base-mist">確認中…</span>}
+                {isConfirming && <span className="text-base-mist">トランザクション確認中…</span>}
                 {isConfirmed && <span className="text-emerald-400">ミント成功 ✓</span>}
                 {mintError && <span className="text-red-400">ミントに失敗しました</span>}
               </p>
-            )}
-
-            {canZoraMint && (
-              <button
-                onClick={onZoraMint}
-                disabled={zoraStatus === 'idle'}
-                className="focus-ring rounded-full border border-purple-500 bg-purple-900/30 px-6 py-2 text-sm font-semibold text-purple-300 transition hover:bg-purple-900/50 disabled:opacity-50"
-              >
-                {zoraStatus === 'minting' ? 'Zoraにコイン作成中…' : 'Zoraにコインを作る'}
-              </button>
-            )}
-
-           {zoraStatus === 'done' && zoraTxHash && (
-  <p className="text-xs text-emerald-400">
-    Zoraコイン作成成功 ✓{' '}
-    <a
-      href={`https://basescan.org/tx/${zoraTxHash}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="underline"
-    >
-      確認する
-    </a>
-  </p>
-)}
-
-            {zoraStatus === 'error' && (
-              <p className="text-xs text-red-400">Zoraへの作成に失敗しました</p>
             )}
 
             <button
