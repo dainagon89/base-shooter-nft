@@ -79,7 +79,6 @@ export function Game() {
     setGameState('playing');
   }, []);
 
-  // ゲームループ（canvasへの描画と当たり判定）
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -88,13 +87,11 @@ export function Game() {
 
     const loop = (time: number) => {
       if (gameStateRef.current === 'playing') {
-        // 自動発射
         if (time - lastFireRef.current > FIRE_INTERVAL_MS) {
           lastFireRef.current = time;
           bulletsRef.current.push({ x: playerXRef.current - 2, y: PLAYER_Y - 6, w: 4, h: 10 });
         }
 
-        // 敵スポーン（時間経過で間隔が短くなる＝難易度上昇）
         if (time - lastSpawnRef.current > spawnIntervalRef.current) {
           lastSpawnRef.current = time;
           spawnIntervalRef.current = Math.max(400, spawnIntervalRef.current - 12);
@@ -102,15 +99,12 @@ export function Game() {
           enemiesRef.current.push({ x: Math.random() * (CANVAS_WIDTH - w), y: -20, w, h: 20 });
         }
 
-        // 弾の移動
         bulletsRef.current.forEach((b) => (b.y -= BULLET_SPEED));
         bulletsRef.current = bulletsRef.current.filter((b) => b.y > -20);
 
-        // 敵の移動
         const enemySpeed = 1.2 + scoreRef.current / 400;
         enemiesRef.current.forEach((e) => (e.y += enemySpeed));
 
-        // 当たり判定: 弾 vs 敵
         const survivors: Rect[] = [];
         for (const e of enemiesRef.current) {
           let hit = false;
@@ -128,7 +122,6 @@ export function Game() {
         }
         enemiesRef.current = survivors;
 
-        // 画面下に到達した敵 → ライフ減少
         const remaining: Rect[] = [];
         for (const e of enemiesRef.current) {
           if (e.y > CANVAS_HEIGHT) {
@@ -147,7 +140,6 @@ export function Game() {
         }
       }
 
-      // 描画
       ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.fillStyle = '#0A0B0D';
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -178,15 +170,12 @@ export function Game() {
   };
 
   const onMint = () => {
-    // 通常のミント呼び出しデータを作る
     const callData = encodeFunctionData({
       abi: shooterRewardAbi,
       functionName: 'mintReward',
       args: [BigInt(finalScore)],
     });
 
-    // 末尾にBuilder Codeの識別データ（ERC-8021）を付けて送信する。
-    // コントラクトはこの余分なデータを無視して通常通り動作する。
     sendTransaction({
       to: CONTRACT_ADDRESS,
       data: concat([callData, BUILDER_CODE_DATA_SUFFIX]),
@@ -203,12 +192,8 @@ export function Game() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between font-mono text-sm text-base-mist">
-        <span>
-          SCORE <span className="text-white">{score}</span>
-        </span>
-        <span>
-          LIVES <span className="text-white">{'♥'.repeat(Math.max(lives, 0))}</span>
-        </span>
+        <span>SCORE <span className="text-white">{score}</span></span>
+        <span>LIVES <span className="text-white">{'♥'.repeat(Math.max(lives, 0))}</span></span>
       </div>
 
       <div className="relative overflow-hidden rounded-2xl border border-base-line">
