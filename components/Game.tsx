@@ -238,11 +238,11 @@ export function Game() {
     !hasMinted;
 
   const canZoraMint =
-    gameState === 'gameover' &&
-    isConnected &&
-    chainId === TARGET_CHAIN_ID &&
-    finalScore >= ZORA_THRESHOLD &&
-    zoraStatus === 'idle';
+  gameState === 'gameover' &&
+  isConnected &&
+  chainId === TARGET_CHAIN_ID &&
+  finalScore >= ZORA_THRESHOLD &&
+  zoraStatus !== 'done';
 
   return (
     <div className="flex flex-col gap-4">
@@ -310,7 +310,7 @@ export function Game() {
             {canZoraMint && (
               <button
                 onClick={onZoraMint}
-                disabled={zoraStatus === 'minting'}
+                disabled={zoraStatus === 'idle'}
                 className="focus-ring rounded-full border border-purple-500 bg-purple-900/30 px-6 py-2 text-sm font-semibold text-purple-300 transition hover:bg-purple-900/50 disabled:opacity-50"
               >
                 {zoraStatus === 'minting' ? 'Zoraにコイン作成中…' : 'Zoraにコインを作る'}
