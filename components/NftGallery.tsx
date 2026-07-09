@@ -1,5 +1,4 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useAccount, usePublicClient } from 'wagmi';
 import { CONTRACT_ADDRESS, shooterRewardAbi } from '@/lib/contract';
@@ -16,6 +15,7 @@ export function NftGallery() {
   const publicClient = usePublicClient();
   const [nfts, setNfts] = useState<OwnedNft[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!address || !publicClient) {
@@ -25,9 +25,13 @@ export function NftGallery() {
 
     let cancelled = false;
     setLoading(true);
+    setError(null);
 
     (async () => {
       try {
+        console.log('NftGallery: CONTRACT_ADDRESS =', CONTRACT_ADDRESS);
+        console.log('NftGallery: address =', address);
+
         const balance = (await publicClient.readContract({
           address: CONTRACT_ADDRESS,
           abi: shooterRewardAbi,
@@ -35,15 +39,19 @@ export function NftGallery() {
           args: [address],
         })) as bigint;
 
+        console.log('NftGallery: balance =', balance.toString());
+
         const items: OwnedNft[] = [];
 
-    for (let i = BigInt(0); i < balance; i++) {
-      const tokenId = (await publicClient.readContract({
+        for (let i = BigInt(0); i < balance; i++) {
+          const tokenId = (await publicClient.readContract({
             address: CONTRACT_ADDRESS,
             abi: shooterRewardAbi,
             functionName: 'tokenOfOwnerByIndex',
             args: [address, i],
           })) as bigint;
+
+          console.log('NftGallery: tokenId =', tokenId.toString());
 
           const uri = (await publicClient.readContract({
             address: CONTRACT_ADDRESS,
@@ -70,6 +78,9 @@ export function NftGallery() {
         }
 
         if (!cancelled) setNfts(items.reverse());
+      } catch (err) {
+        console.error('NftGallery error:', err);
+        if (!cancelled) setError(err instanceof Error ? err.message : '読み込みに失敗しました');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -89,7 +100,12 @@ export function NftGallery() {
       </h2>
 
       {loading && <p className="text-sm text-base-mist">読み込み中…</p>}
-      {!loading && nfts.length === 0 && (
+
+      {error && (
+        <p className="text-sm text-red-400">エラー: {error}</p>
+      )}
+
+      {!loading && !error && nfts.length === 0 && (
         <p className="text-sm text-base-mist">まだミントしたNFTがありません。</p>
       )}
 
