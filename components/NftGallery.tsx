@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
-import { CONTRACT_ADDRESS } from '@/lib/contract';
+
+const SHOOTER_CONTRACT = '0x015e39bdb413f928ab1b4c0a120e91d83fc48208';
 
 interface OwnedNft {
   tokenId: number;
@@ -38,11 +39,9 @@ export function NftGallery() {
           return;
         }
 
-        const contractLower = CONTRACT_ADDRESS.toLowerCase();
-
         const filtered = data.items.filter(
           (item: { token: { address: string } }) =>
-            item.token.address.toLowerCase() === contractLower
+            item.token.address.toLowerCase() === SHOOTER_CONTRACT
         );
 
         const items: OwnedNft[] = filtered.map((item: {
