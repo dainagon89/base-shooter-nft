@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 
-const SHOOTER_CONTRACT = 'const SHOOTER_CONTRACT = '0x015E39BDb413F928aB1B4c0a120E91d83fc48208';
+const SHOOTER_CONTRACT = '0x015E39BDb413F928aB1B4c0a120E91d83fc48208';
 
 interface OwnedNft {
   tokenId: number;
