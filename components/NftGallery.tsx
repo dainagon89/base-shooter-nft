@@ -39,10 +39,10 @@ export function NftGallery() {
           return;
         }
 
-        const filtered = data.items.filter(
-          (item: { token: { address: string } }) =>
-            item.token.address.toLowerCase() === SHOOTER_CONTRACT
-        );
+const filtered = data.items.filter(
+  (item: { token: { address?: string } }) =>
+    (item.token?.address || '').toLowerCase() === SHOOTER_CONTRACT.toLowerCase()
+);
 
         const items: OwnedNft[] = filtered.map((item: {
           id: string;
