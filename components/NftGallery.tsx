@@ -1,8 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
-
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS?.toLowerCase();
+import { CONTRACT_ADDRESS } from '@/lib/contract';
 
 interface OwnedNft {
   tokenId: number;
@@ -29,7 +28,6 @@ export function NftGallery() {
 
     (async () => {
       try {
-        // BlockscoutからNFT一覧を取得
         const res = await fetch(
           `https://base.blockscout.com/api/v2/addresses/${address}/nft?type=ERC-721`
         );
@@ -40,10 +38,11 @@ export function NftGallery() {
           return;
         }
 
-        // このコントラクトのNFTだけ絞り込む
+        const contractLower = CONTRACT_ADDRESS.toLowerCase();
+
         const filtered = data.items.filter(
           (item: { token: { address: string } }) =>
-            item.token.address.toLowerCase() === CONTRACT_ADDRESS
+            item.token.address.toLowerCase() === contractLower
         );
 
         const items: OwnedNft[] = filtered.map((item: {
@@ -58,10 +57,7 @@ export function NftGallery() {
           const rankAttr = attrs.find((a) => a.trait_type === 'Rank');
 
           let image = item.metadata?.image || '';
-          // data:image/svg+xml;base64, の形式をそのまま使う
-          if (image.startsWith('data:')) {
-            // そのまま使える
-          } else if (image.startsWith('ipfs://')) {
+          if (image.startsWith('ipfs://')) {
             image = image.replace('ipfs://', 'https://ipfs.io/ipfs/');
           }
 
@@ -73,7 +69,7 @@ export function NftGallery() {
           };
         });
 
-        if (!cancelled) setNfts(items.sort((a, b) => b.tokenId - a.tokenId));
+        if (!cancelled) setNfts(items.sort((a: OwnedNft, b: OwnedNft) => b.tokenId - a.tokenId));
       } catch (err) {
         console.error('NftGallery error:', err);
         if (!cancelled) setError(err instanceof Error ? err.message : '読み込みに失敗しました');
