@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useAccount, usePublicClient } from 'wagmi';
-import { CONTRACT_ADDRESS, shooterRewardAbi } from '@/lib/contract';
+import { useAccount } from 'wagmi';
+
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS?.toLowerCase();
 
 interface OwnedNft {
   tokenId: number;
@@ -12,13 +13,12 @@ interface OwnedNft {
 
 export function NftGallery() {
   const { address, isConnected } = useAccount();
-  const publicClient = usePublicClient();
   const [nfts, setNfts] = useState<OwnedNft[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!address || !publicClient) {
+    if (!address) {
       setNfts([]);
       return;
     }
@@ -29,55 +29,51 @@ export function NftGallery() {
 
     (async () => {
       try {
-        console.log('NftGallery: CONTRACT_ADDRESS =', CONTRACT_ADDRESS);
-        console.log('NftGallery: address =', address);
+        // BlockscoutからNFT一覧を取得
+        const res = await fetch(
+          `https://base.blockscout.com/api/v2/addresses/${address}/nft?type=ERC-721`
+        );
+        const data = await res.json();
 
-        const balance = (await publicClient.readContract({
-          address: CONTRACT_ADDRESS,
-          abi: shooterRewardAbi,
-          functionName: 'balanceOf',
-          args: [address],
-        })) as bigint;
-
-        console.log('NftGallery: balance =', balance.toString());
-
-        const items: OwnedNft[] = [];
-
-        for (let i = BigInt(0); i < balance; i++) {
-          const tokenId = (await publicClient.readContract({
-            address: CONTRACT_ADDRESS,
-            abi: shooterRewardAbi,
-            functionName: 'tokenOfOwnerByIndex',
-            args: [address, i],
-          })) as bigint;
-
-          console.log('NftGallery: tokenId =', tokenId.toString());
-
-          const uri = (await publicClient.readContract({
-            address: CONTRACT_ADDRESS,
-            abi: shooterRewardAbi,
-            functionName: 'tokenURI',
-            args: [tokenId],
-          })) as string;
-
-          const jsonStr = atob(uri.replace('data:application/json;base64,', ''));
-          const meta = JSON.parse(jsonStr) as {
-            image: string;
-            attributes?: { trait_type: string; value: string | number }[];
-          };
-
-          const scoreAttr = meta.attributes?.find((a) => a.trait_type === 'Score');
-          const rankAttr = meta.attributes?.find((a) => a.trait_type === 'Rank');
-
-          items.push({
-            tokenId: Number(tokenId),
-            image: meta.image,
-            score: scoreAttr ? String(scoreAttr.value) : '-',
-            rank: rankAttr ? String(rankAttr.value) : '-',
-          });
+        if (!data.items) {
+          if (!cancelled) setNfts([]);
+          return;
         }
 
-        if (!cancelled) setNfts(items.reverse());
+        // このコントラクトのNFTだけ絞り込む
+        const filtered = data.items.filter(
+          (item: { token: { address: string } }) =>
+            item.token.address.toLowerCase() === CONTRACT_ADDRESS
+        );
+
+        const items: OwnedNft[] = filtered.map((item: {
+          id: string;
+          metadata?: {
+            image?: string;
+            attributes?: { trait_type: string; value: string | number }[];
+          };
+        }) => {
+          const attrs = item.metadata?.attributes || [];
+          const scoreAttr = attrs.find((a) => a.trait_type === 'Score');
+          const rankAttr = attrs.find((a) => a.trait_type === 'Rank');
+
+          let image = item.metadata?.image || '';
+          // data:image/svg+xml;base64, の形式をそのまま使う
+          if (image.startsWith('data:')) {
+            // そのまま使える
+          } else if (image.startsWith('ipfs://')) {
+            image = image.replace('ipfs://', 'https://ipfs.io/ipfs/');
+          }
+
+          return {
+            tokenId: Number(item.id),
+            image,
+            score: scoreAttr ? String(scoreAttr.value) : '-',
+            rank: rankAttr ? String(rankAttr.value) : '-',
+          };
+        });
+
+        if (!cancelled) setNfts(items.sort((a, b) => b.tokenId - a.tokenId));
       } catch (err) {
         console.error('NftGallery error:', err);
         if (!cancelled) setError(err instanceof Error ? err.message : '読み込みに失敗しました');
@@ -89,7 +85,7 @@ export function NftGallery() {
     return () => {
       cancelled = true;
     };
-  }, [address, publicClient]);
+  }, [address]);
 
   if (!isConnected) return null;
 
@@ -112,8 +108,14 @@ export function NftGallery() {
       <div className="grid grid-cols-2 gap-3">
         {nfts.map((nft) => (
           <div key={nft.tokenId} className="overflow-hidden rounded-xl border border-base-line">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={nft.image} alt={`#${nft.tokenId}`} className="w-full" />
+            {nft.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={nft.image} alt={`#${nft.tokenId}`} className="w-full" />
+            ) : (
+              <div className="flex h-24 items-center justify-center bg-base-ink text-xs text-base-mist">
+                画像なし
+              </div>
+            )}
             <div className="p-2 text-center font-mono text-xs text-base-mist">
               #{nft.tokenId} ・ {nft.rank} ・ {nft.score}pt
             </div>
