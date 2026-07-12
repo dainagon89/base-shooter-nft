@@ -32,7 +32,7 @@ interface Rect {
 }
 
 export function Game() {
-  const { isConnected, chainId } = useAccount();
+  const { isConnected, chainId, address } = useAccount();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
@@ -51,6 +51,7 @@ export function Game() {
   const [lives, setLives] = useState(STARTING_LIVES);
   const [finalScore, setFinalScore] = useState(0);
   const [hasMinted, setHasMinted] = useState(false);
+  const [easHash, setEasHash] = useState<string | null>(null);
 
   const {
     data: hash,
@@ -58,11 +59,25 @@ export function Game() {
     isPending: isMinting,
     error: mintError,
   } = useSendTransaction();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({ hash });
 
   useEffect(() => {
-    if (isConfirmed) setHasMinted(true);
-  }, [isConfirmed]);
+    if (isConfirmed && address) {
+      setHasMinted(true);
+      // APIルート経由でEASアテステーションを発行
+      fetch('/api/eas-attest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerAddress: address, score: finalScore }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.hash) setEasHash(data.hash);
+        })
+        .catch((err) => console.error('EAS attest error:', err));
+    }
+  }, [isConfirmed, address, finalScore]);
 
   const startGame = useCallback(() => {
     bulletsRef.current = [];
@@ -76,6 +91,7 @@ export function Game() {
     setScore(0);
     setLives(STARTING_LIVES);
     setHasMinted(false);
+    setEasHash(null);
     gameStateRef.current = 'playing';
     setGameState('playing');
   }, []);
@@ -90,14 +106,24 @@ export function Game() {
       if (gameStateRef.current === 'playing') {
         if (time - lastFireRef.current > FIRE_INTERVAL_MS) {
           lastFireRef.current = time;
-          bulletsRef.current.push({ x: playerXRef.current - 2, y: PLAYER_Y - 6, w: 4, h: 10 });
+          bulletsRef.current.push({
+            x: playerXRef.current - 2,
+            y: PLAYER_Y - 6,
+            w: 4,
+            h: 10,
+          });
         }
 
         if (time - lastSpawnRef.current > spawnIntervalRef.current) {
           lastSpawnRef.current = time;
           spawnIntervalRef.current = Math.max(400, spawnIntervalRef.current - 12);
           const w = 28;
-          enemiesRef.current.push({ x: Math.random() * (CANVAS_WIDTH - w), y: -20, w, h: 20 });
+          enemiesRef.current.push({
+            x: Math.random() * (CANVAS_WIDTH - w),
+            y: -20,
+            w,
+            h: 20,
+          });
         }
 
         bulletsRef.current.forEach((b) => (b.y -= BULLET_SPEED));
@@ -110,7 +136,11 @@ export function Game() {
         for (const e of enemiesRef.current) {
           let hit = false;
           bulletsRef.current = bulletsRef.current.filter((b) => {
-            const collide = b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y;
+            const collide =
+              b.x < e.x + e.w &&
+              b.x + b.w > e.x &&
+              b.y < e.y + e.h &&
+              b.y + b.h > e.y;
             if (collide) hit = true;
             return !collide;
           });
@@ -146,7 +176,12 @@ export function Game() {
       ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
       ctx.fillStyle = '#0052FF';
-      ctx.fillRect(playerXRef.current - PLAYER_WIDTH / 2, PLAYER_Y, PLAYER_WIDTH, PLAYER_HEIGHT);
+      ctx.fillRect(
+        playerXRef.current - PLAYER_WIDTH / 2,
+        PLAYER_Y,
+        PLAYER_WIDTH,
+        PLAYER_HEIGHT
+      );
 
       ctx.fillStyle = '#7DD3FC';
       bulletsRef.current.forEach((b) => ctx.fillRect(b.x, b.y, b.w, b.h));
@@ -167,7 +202,10 @@ export function Game() {
     const rect = canvas.getBoundingClientRect();
     const scaleX = CANVAS_WIDTH / rect.width;
     const x = (clientX - rect.left) * scaleX;
-    playerXRef.current = Math.min(CANVAS_WIDTH - PLAYER_WIDTH / 2, Math.max(PLAYER_WIDTH / 2, x));
+    playerXRef.current = Math.min(
+      CANVAS_WIDTH - PLAYER_WIDTH / 2,
+      Math.max(PLAYER_WIDTH / 2, x)
+    );
   };
 
   const onMint = () => {
@@ -193,8 +231,12 @@ export function Game() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between font-mono text-sm text-base-mist">
-        <span>SCORE <span className="text-white">{score}</span></span>
-        <span>LIVES <span className="text-white">{'♥'.repeat(Math.max(lives, 0))}</span></span>
+        <span>
+          SCORE <span className="text-white">{score}</span>
+        </span>
+        <span>
+          LIVES <span className="text-white">{'♥'.repeat(Math.max(lives, 0))}</span>
+        </span>
       </div>
 
       <div className="relative overflow-hidden rounded-2xl border border-base-line">
@@ -233,7 +275,9 @@ export function Game() {
             )}
 
             {finalScore >= MINT_THRESHOLD && !isConnected && (
-              <p className="text-xs text-base-mist">ウォレットを接続するとミントできます。</p>
+              <p className="text-xs text-base-mist">
+                ウォレットを接続するとミントできます。
+              </p>
             )}
 
             {canMint && (
@@ -248,9 +292,27 @@ export function Game() {
 
             {(isConfirming || isConfirmed || mintError) && (
               <p className="text-xs">
-                {isConfirming && <span className="text-base-mist">トランザクション確認中…</span>}
-                {isConfirmed && <span className="text-emerald-400">ミント成功 ✓</span>}
-                {mintError && <span className="text-red-400">ミントに失敗しました</span>}
+                {isConfirming && (
+                  <span className="text-base-mist">トランザクション確認中…</span>
+                )}
+                {isConfirmed && (
+                  <span className="text-emerald-400">
+                    ミント成功 ✓
+                    {easHash && (
+                      
+                        href={`https://base.easscan.org/attestation/view/${easHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 underline"
+                      >
+                        EAS証明書を見る
+                      </a>
+                    )}
+                  </span>
+                )}
+                {mintError && (
+                  <span className="text-red-400">ミントに失敗しました</span>
+                )}
               </p>
             )}
 
