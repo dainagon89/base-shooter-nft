@@ -299,7 +299,7 @@ export function Game() {
                   <span className="text-emerald-400">
                     ミント成功 ✓
                     {easHash && (
-                      
+                      <a
                         href={`https://base.easscan.org/attestation/view/${easHash}`}
                         target="_blank"
                         rel="noopener noreferrer"
