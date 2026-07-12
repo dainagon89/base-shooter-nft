@@ -12,6 +12,7 @@ The game is a shooting game where players earn NFT rewards based on their score:
 
 Scores and NFT metadata are generated and stored fully on-chain.
 An x402-powered AI advice endpoint is also available for $0.001 USDC per request.
+EAS attestations are automatically issued on Base mainnet when a player mints an NFT.
 
 ## MCP Server
 
@@ -67,6 +68,23 @@ Returns a JSON object:
 
 ---
 
+## EAS Attestation
+
+When a player mints an NFT, an on-chain EAS attestation is automatically issued on Base mainnet.
+This provides a verifiable proof of the player's score and rank.
+
+**EAS Schema UID:** `0x95deb7cd64fd605ea07e159868d2e406bcc25c79eebdebe3309c0dd6a1408f32`
+
+**Schema fields:**
+- `playerAddress` (address): The player's wallet address
+- `score` (uint256): The player's score
+- `rank` (string): Bronze / Silver / Gold / Diamond
+- `timestamp` (uint256): Unix timestamp of the attestation
+
+**View attestations:** https://base.easscan.org/attestations/forSchema/0x95deb7cd64fd605ea07e159868d2e406bcc25c79eebdebe3309c0dd6a1408f32
+
+---
+
 ## Contract Info
 
 | Field | Value |
@@ -83,3 +101,5 @@ Returns a JSON object:
 - **Game:** https://base-shooter-nft.vercel.app
 - **GitHub:** https://github.com/dainagon89/base-shooter-nft
 - **Builder:** `dainagon.eth` (`0x4128F1A04767F1856db4f1588F8250F9ED948D12`)
+- **base.dev App ID:** `6a435e12f20fd3db982cf7d5`
+- **Builder Code:** `bc_kyew96tf`
