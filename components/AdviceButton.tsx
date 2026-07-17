@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
 import { TARGET_CHAIN_ID } from '@/lib/wagmiConfig';
+import { createX402Client } from '@coinbase/x402';   // ★追加：x402クライアント
+import { BUILDER_CODE } from '@/lib/builderCode';     // ★祐介のBuilder Codeを読み込む
 
 interface Props {
   score: number;
@@ -25,65 +27,37 @@ export function AdviceButton({ score }: Props) {
     setError(null);
 
     try {
+      // ① まず /api/advice を叩いて支払い要求を受け取る
       const res1 = await fetch(`/api/advice?score=${score}`);
       if (res1.status !== 402) throw new Error('Unexpected response');
       const { paymentRequirements } = await res1.json();
 
-      const validAfter = Math.floor(Date.now() / 1000) - 1;
-      const validBefore = Math.floor(Date.now() / 1000) + 60;
-      const nonce = crypto.getRandomValues(new Uint8Array(32));
-      const nonceHex = `0x${Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('')}` as `0x${string}`;
+      // ② x402クライアントを作成
+      const client = createX402Client({
+        wallet: walletClient,       // Rabby / wagmi の walletClient
+        chainId: 8453,              // Base
+      });
 
-      const signature = await walletClient.signTypedData({
-        domain: {
-          name: 'USD Coin',
-          version: '2',
-          chainId: 8453,
-          verifyingContract: paymentRequirements.asset as `0x${string}`,
-        },
-        types: {
-          TransferWithAuthorization: [
-            { name: 'from', type: 'address' },
-            { name: 'to', type: 'address' },
-            { name: 'value', type: 'uint256' },
-            { name: 'validAfter', type: 'uint256' },
-            { name: 'validBefore', type: 'uint256' },
-            { name: 'nonce', type: 'bytes32' },
-          ],
-        },
-        primaryType: 'TransferWithAuthorization',
-        message: {
-          from: walletClient.account.address,
-          to: paymentRequirements.payTo as `0x${string}`,
-          value: BigInt(paymentRequirements.maxAmountRequired),
-          validAfter: BigInt(validAfter),
-          validBefore: BigInt(validBefore),
-          nonce: nonceHex,
+      // ③ x402.pay() を呼んで支払いトランザクションを生成 → Rabby が署名
+      const payTx = await client.pay({
+        amount: paymentRequirements.maxAmountRequired,   // "1000" (0.001 USDC)
+        token: paymentRequirements.asset,                // USDC
+        to: paymentRequirements.payTo,                   // 祐介の受取アドレス
+        metadata: {
+          builderCode: BUILDER_CODE,                    // ★祐介のBuilder Code
         },
       });
 
-      const payment = btoa(JSON.stringify({
-        scheme: 'exact',
-        network: 'base',
-        payload: {
-          signature,
-          authorization: {
-            from: walletClient.account.address,
-            to: paymentRequirements.payTo,
-            value: paymentRequirements.maxAmountRequired,
-            validAfter: String(validAfter),
-            validBefore: String(validBefore),
-            nonce: nonceHex,
-          },
-        },
-      }));
-
+      // ④ 署名済みの payment をバックエンドに送る
       const res2 = await fetch(`/api/advice?score=${score}`, {
-        headers: { 'X-PAYMENT': payment },
+        headers: {
+          'X-PAYMENT': payTx.payment,                   // ★x402が生成したpayment文字列
+        },
       });
 
       if (!res2.ok) throw new Error('決済の確認に失敗しました');
       const data = await res2.json();
+
       setAdvice(data.advice);
       setPaid(true);
     } catch (e) {
