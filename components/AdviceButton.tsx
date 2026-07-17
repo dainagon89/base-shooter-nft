@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
 import { TARGET_CHAIN_ID } from '@/lib/wagmiConfig';
-import { createX402Client } from '@coinbase/x402';   // ★追加：x402クライアント
 import { BUILDER_CODE } from '@/lib/builderCode';     // ★祐介のBuilder Codeを読み込む
 
 interface Props {
@@ -32,21 +31,6 @@ export function AdviceButton({ score }: Props) {
       if (res1.status !== 402) throw new Error('Unexpected response');
       const { paymentRequirements } = await res1.json();
 
-      // ② x402クライアントを作成
-      const client = createX402Client({
-        wallet: walletClient,       // Rabby / wagmi の walletClient
-        chainId: 8453,              // Base
-      });
-
-      // ③ x402.pay() を呼んで支払いトランザクションを生成 → Rabby が署名
-      const payTx = await client.pay({
-        amount: paymentRequirements.maxAmountRequired,   // "1000" (0.001 USDC)
-        token: paymentRequirements.asset,                // USDC
-        to: paymentRequirements.payTo,                   // 祐介の受取アドレス
-        metadata: {
-          builderCode: BUILDER_CODE,                    // ★祐介のBuilder Code
-        },
-      });
 
       // ④ 署名済みの payment をバックエンドに送る
       const res2 = await fetch(`/api/advice?score=${score}`, {
