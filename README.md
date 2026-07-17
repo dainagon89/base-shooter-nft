@@ -1,128 +1,129 @@
 # Base Shooter NFT
 
-画面をドラッグして敵を撃つシューティングゲーム。弾は自動発射されます。
-スコア100点以上でゲームオーバー後に「NFTをミントする」ボタンが現れ、
-スコアに応じたランク(Bronze/Silver/Gold/Diamond)のNFTを
-**Base**チェーン上にミントできます。画像とメタデータはすべてオンチェーンで
-生成されるため、IPFSなど外部の保存サービスは不要です。
+スコアに応じてNFTがミントされるシューティングゲーム。スコア・NFTメタデータはすべてオンチェーンで生成・保存され、ミント時にはEASアテステーションが自動発行されます。
 
-- フロントエンド: Next.js 14 (App Router) + wagmi v2 + viem + Tailwind CSS
-- コントラクト: Solidity（`contracts/ShooterReward.sol`、OpenZeppelinのERC721Enumerableを使用）
-- 対応ウォレット: ブラウザ拡張ウォレット（MetaMaskなど）, Coinbase Wallet
+**🎮 Play:** https://base-shooter-nft.vercel.app
+**📦 GitHub:** https://github.com/dainagon89/base-shooter-nft
 
 ---
 
-## 1. 事前準備
+## 概要
 
-- Node.js 18以上
-- ブラウザ拡張ウォレット（[MetaMask](https://metamask.io/)など）
-- [GitHub Desktop](https://desktop.github.com)（コードをGitHubにアップロードするのに使います）
-- Baseメインネット用の少額のETH（コントラクトデプロイとNFTミントのガス代として必要です）
+Base Shooter NFT は、Baseメインネット上で動くシューティングゲームです。プレイヤーはスコアに応じて以下のランクのNFTを獲得できます。
 
----
+| ランク | スコア範囲 |
+| --- | --- |
+| Bronze | 100–149 |
+| Silver | 150–299 |
+| Gold | 300–499 |
+| Diamond | 500+ |
 
-## 2. コントラクトをデプロイする
+スコアとNFTメタデータは完全にオンチェーンで生成・保存されます。またAIエージェント向けにx402決済対応のアドバイスAPI、およびMCPサーバーを提供しています。
 
-[Remix IDE](https://remix.ethereum.org) を使います。
+## 機能
 
-1. Remixを開き、新規ファイル `ShooterReward.sol` を作成し、
-   `contracts/ShooterReward.sol` の内容をコピーして貼り付けます。
-2. 左メニューの **Solidity Compiler** タブで、コンパイラバージョンを
-   `0.8.24` 以上に設定し、**Compile** します。
-   (`@openzeppelin/contracts` のインポートは、Remixがインターネット経由で
-   自動的に取得してくれます。少し時間がかかることがあります)
-3. 左メニューの **Deploy & Run Transactions** タブを開きます。
-4. **Environment** を `Injected Provider - MetaMask` に設定します
-   （MetaMask側でネットワークを **Base** に切り替えておいてください。
-   今回は最初からBaseメインネットへのデプロイです）。
-5. **Deploy** をクリックし、MetaMaskでトランザクションを承認します
-   （前回のコントラクトより少し複雑なので、ガス代は前回より高くなります）。
-6. デプロイ完了後に表示される**コントラクトアドレス**をコピーしておきます。
+- スコアベースのNFTミント(ERC-721、Base mainnet)
+- スコア・メタデータの完全オンチェーン保存
+- NFTミント時のEASアテステーション自動発行
+- x402マイクロペイメント対応のAIアドバイスエンドポイント($0.001 USDC/リクエスト)
+- MCPサーバーによるAIエージェント連携
 
----
+## 技術スタック
 
-## 3. フロントエンドをローカルで動かす（任意）
+- **フレームワーク:** Next.js 14–16 (App Router)
+- **Web3ライブラリ:** wagmi, viem
+- **スタイリング:** Tailwind CSS
+- **スマートコントラクト:** Solidity, ERC-721 (Remix IDEで開発)
+- **アテステーション:** EAS SDK (`@ethereum-attestation-service/eas-sdk`)
+- **決済:** x402 (EIP-3009 TransferWithAuthorization, USDC on Base)
+- **デプロイ:** Vercel
+- **チェーン:** Base Mainnet (Chain ID: 8453)
+
+## デプロイ済みURL
+
+| 項目 | URL |
+| --- | --- |
+| アプリ | https://base-shooter-nft.vercel.app |
+| MCPサーバー | https://base-shooter-nft.vercel.app/api/mcp/mcp |
+| GitHub | https://github.com/dainagon89/base-shooter-nft |
+
+## 環境変数の設定方法
+
+Vercelの `Settings → Environment Variables` から以下を設定してください(実際に必要な変数は `.env.example` を参照し、プロジェクト構成に合わせて調整してください):
 
 ```bash
-cd base-shooter-nft
-npm install
-cp .env.example .env.local
-```
-
-`.env.local` を編集し、デプロイしたコントラクトアドレスを設定します:
-
-```
-NEXT_PUBLIC_CONTRACT_ADDRESS=0xあなたのコントラクトアドレス
+# .env.local (例)
+NEXT_PUBLIC_CONTRACT_ADDRESS=0x015E39BDb413F928aB1B4c0a120E91d83fc48208
 NEXT_PUBLIC_CHAIN_ID=8453
+AGENT_PRIVATE_KEY=your_agent_wallet_private_key   # EASアテステーション発行用
+EAS_SCHEMA_UID=0x95deb7cd64fd605ea07e159868d2e406bcc25c79eebdebe3309c0dd6a1408f32
+X402_RECIPIENT_ADDRESS=0x4128F1A04767F1856db4f1588F8250F9ED948D12
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 ```
 
-```bash
-npm run dev
+設定後は Vercel の Deployments タブから **Redeploy** して反映してください。
+
+## コントラクト情報
+
+| 項目 | 値 |
+| --- | --- |
+| コントラクトアドレス | `0x015E39BDb413F928aB1B4c0a120E91d83fc48208` |
+| チェーン | Base Mainnet (Chain ID: 8453) |
+| トークン規格 | ERC-721 (NFT) |
+| Basescan | https://basescan.org/address/0x015E39BDb413F928aB1B4c0a120E91d83fc48208 |
+
+## MCPサーバー
+
+AIエージェントは以下のツールを利用できます。
+
+| ツール | 説明 | パラメータ |
+| --- | --- | --- |
+| `get_game_info` | ゲーム概要・NFTミント条件・リンクを取得 | なし |
+| `get_player_info` | 指定ウォレットの保有NFT数・スコア・ランクを取得 | `address` (string) |
+| `get_total_supply` | ミント済みNFTの総数を取得 | なし |
+
+## x402 AIアドバイスエンドポイント
+
+```
+GET https://base-shooter-nft.vercel.app/api/advice?score={score}
 ```
 
-`http://localhost:3000` を開いて確認してください。
+| 項目 | 値 |
+| --- | --- |
+| 決済方式 | EIP-3009 TransferWithAuthorization (USDC on Base) |
+| Asset | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (USDC on Base) |
+| 金額 | 1000 (= $0.001 USDC, 6 decimals) |
+| 受取先 | `0x4128F1A04767F1856db4f1588F8250F9ED948D12` |
+
+レスポンス例:
+```json
+{ "advice": "Score-based gameplay tip here." }
+```
+
+## EASアテステーション
+
+NFTミント時に、Baseメインネット上でEASアテステーションが自動発行され、プレイヤーのスコア・ランクの検証可能な証明を提供します。
+
+| 項目 | 値 |
+| --- | --- |
+| EAS Schema UID | `0x95deb7cd64fd605ea07e159868d2e406bcc25c79eebdebe3309c0dd6a1408f32` |
+| スキーマフィールド | `playerAddress` (address), `score` (uint256), `rank` (string), `timestamp` (uint256) |
+| Attestations一覧 | https://base.easscan.org/attestations/forSchema/0x95deb7cd64fd605ea07e159868d2e406bcc25c79eebdebe3309c0dd6a1408f32 |
+
+## Builder Code (ERC-8021)
+
+| 項目 | 値 |
+| --- | --- |
+| Builder Code | `bc_kyew96tf` |
+
+## その他
+
+| 項目 | 値 |
+| --- | --- |
+| Builder (ENS) | `dainagon.eth` |
+| Builder (Address) | `0x4128F1A04767F1856db4f1588F8250F9ED948D12` |
+| base.dev App ID | `6a435e12f20fd3db982cf7d5` |
 
 ---
 
-## 4. GitHubにアップロードする
-
-前回ブラウザのドラッグ&ドロップでフォルダ構造が崩れてしまったので、
-最初から **GitHub Desktop** を使います。
-
-1. GitHub Desktopを起動し、ログインする
-2. **File → Add local repository** → このフォルダ(`base-shooter-nft`)を選ぶ
-3. 「create a repository」をクリック
-4. 左下にコミットメッセージを入力 → **Commit to main**
-5. 右上の **Publish repository** をクリック → 名前を確認して **Publish Repository**
-
----
-
-## 5. Vercelにデプロイする
-
-1. [vercel.com](https://vercel.com) → **Add New...** → **Project**
-2. GitHubの`base-shooter-nft`リポジトリを選んで **Import**
-3. **Environment Variables** に以下を追加:
-   - `NEXT_PUBLIC_CONTRACT_ADDRESS`
-   - `NEXT_PUBLIC_CHAIN_ID`(`8453`)
-4. **Deploy** をクリック
-
----
-
-## 6. （任意）Base公式サイトに登録してBuilder Codeを追加する
-
-前回の「Base Tap Rush」と同じ流れで、base.devにこのアプリを新しく登録し、
-発行されたBuilder Codeを `lib/builderCode.ts` のような形でコードに追加できます。
-登録が終わってBuilder Codeが発行されたら、いつでも声をかけてください。
-`components/Game.tsx` の中のミント送信処理に組み込みます。
-
----
-
-## ディレクトリ構成
-
-```
-base-shooter-nft/
-├── contracts/
-│   └── ShooterReward.sol     # NFTリワードコントラクト
-├── app/
-│   ├── layout.tsx
-│   ├── page.tsx
-│   ├── providers.tsx
-│   └── globals.css
-├── components/
-│   ├── Game.tsx                # ゲーム本体・ミント処理
-│   ├── NftGallery.tsx           # 所持NFTのギャラリー表示
-│   └── WalletBar.tsx            # ウォレット接続UI
-├── lib/
-│   ├── wagmiConfig.ts            # チェーン・コネクタ設定
-│   └── contract.ts                # コントラクトアドレス・ABI
-└── .env.example
-```
-
-## カスタマイズのヒント
-
-- ミントに必要な最低スコア: `contracts/ShooterReward.sol` の
-  `MINT_THRESHOLD`（再デプロイが必要です）。
-- 難易度（敵の出現間隔・速度）: `components/Game.tsx` の
-  `spawnIntervalRef` の初期値や `enemySpeed` の計算式を調整してください。
-- NFTのランク区切りや色: `contracts/ShooterReward.sol` の
-  `_rank` / `_color` 関数。
+Built with ❤️ on [Base](https://base.org)
