@@ -106,7 +106,12 @@ export async function GET(req: NextRequest) {
 
     if (!verifyResult.isValid) {
       return NextResponse.json(
-        { error: 'Invalid payment', debug: verifyResult },
+        {
+          error: 'Invalid payment',
+          debug: verifyResult,
+          sentPaymentPayload: paymentPayload,
+          sentPaymentRequirements: paymentRequirements,
+        },
         { status: 402 }
       );
     }
