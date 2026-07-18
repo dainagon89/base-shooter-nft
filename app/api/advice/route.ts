@@ -3,6 +3,7 @@ import { generateJwt } from '@coinbase/cdp-sdk/auth';
 import { declareBuilderCodeExtension } from '@x402/extensions';
 
 const PAYMENT_ADDRESS = process.env.NEXT_PUBLIC_ADVICE_RECIPIENT as string;
+const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 const FACILITATOR_HOST = 'api.cdp.coinbase.com';
 const FACILITATOR_BASE = `https://${FACILITATOR_HOST}/platform/v2/x402`;
@@ -43,7 +44,6 @@ async function callFacilitator(path: '/verify' | '/settle', body: unknown) {
   });
 
   const json = await res.json();
-  // デバッグ用: facilitatorの生レスポンスとHTTPステータスをログに出す
   console.log(`[facilitator ${path}] status=${res.status}`, JSON.stringify(json));
   return { httpStatus: res.status, ...json };
 }
@@ -52,27 +52,30 @@ export async function GET(req: NextRequest) {
   try {
     const score = parseInt(req.nextUrl.searchParams.get('score') || '0', 10);
 
-    const paymentRequirements = {
+    // x402 v2 の PaymentRequirements (CDP facilitatorに渡す形)
+    const accepted = {
       scheme: 'exact',
-      network: 'eip155:8453',
-      maxAmountRequired: '1000',
-      resource: `https://${req.headers.get('host')}/api/advice`,
-      description: 'Base Shooter NFT - AIアドバイス ($0.001 USDC)',
-      mimeType: 'application/json',
+      network: 'eip155:8453', // Base mainnet (CAIP-2)
+      asset: USDC_BASE,
+      amount: '1000', // $0.001 USDC (6 decimals)
       payTo: PAYMENT_ADDRESS,
       maxTimeoutSeconds: 60,
-      asset: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
       extra: { name: 'USDC', version: '2' },
-      extensions: {
-        ...declareBuilderCodeExtension(BUILDER_CODE),
-      },
     };
 
     const paymentHeader = req.headers.get('X-PAYMENT');
 
     if (!paymentHeader) {
+      // クライアント向けの独自402レスポンス
       return NextResponse.json(
-        { error: 'Payment required', paymentRequirements },
+        {
+          error: 'Payment required',
+          x402Version: 2,
+          accepts: [accepted],
+          resource: `https://${req.headers.get('host')}/api/advice`,
+          description: 'Base Shooter NFT - AIアドバイス ($0.001 USDC)',
+          mimeType: 'application/json',
+        },
         { status: 402 }
       );
     }
@@ -84,25 +87,32 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid X-PAYMENT header' }, { status: 400 });
     }
 
-    const verifyResult = await callFacilitator('/verify', {
-      x402Version: 1,
+    // facilitatorに渡すPaymentRequirements(Builder Code拡張を付与)
+    const paymentRequirements = {
+      ...accepted,
+      extensions: {
+        ...declareBuilderCodeExtension(BUILDER_CODE),
+      },
+    };
+
+    const facilitatorBody = {
+      x402Version: 2,
       paymentPayload,
       paymentRequirements,
-    });
+    };
+
+    // 1. 署名を検証(verify)
+    const verifyResult = await callFacilitator('/verify', facilitatorBody);
 
     if (!verifyResult.isValid) {
-      // ↓ デバッグのため、facilitatorが返した生の内容を丸ごと返す
       return NextResponse.json(
-        { error: 'Invalid payment', debug: verifyResult, sentPaymentPayload: paymentPayload, sentPaymentRequirements: paymentRequirements },
+        { error: 'Invalid payment', debug: verifyResult },
         { status: 402 }
       );
     }
 
-    const settleResult = await callFacilitator('/settle', {
-      x402Version: 1,
-      paymentPayload,
-      paymentRequirements,
-    });
+    // 2. オンチェーンで決済を実行(settle)
+    const settleResult = await callFacilitator('/settle', facilitatorBody);
 
     if (!settleResult.success) {
       return NextResponse.json(
