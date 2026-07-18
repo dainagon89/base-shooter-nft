@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
       amount: REQUIRED_AMOUNT.toString(),
       payTo: PAYMENT_ADDRESS,
       maxTimeoutSeconds: 600,
-      extra: { name: 'USDC', version: '2' },
+      extra: { name: 'USD Coin', version: '2' },
     };
 
     const paymentHeader = req.headers.get('X-PAYMENT');
@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
     const isValidSignature = await verifyTypedData({
       address: from,
       domain: {
-        name: 'USDC',
+        name: 'USD Coin',
         version: '2',
         chainId: 8453,
         verifyingContract: USDC_BASE,
