@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
       asset: USDC_BASE,
       amount: '1000', // $0.001 USDC (6 decimals)
       payTo: PAYMENT_ADDRESS,
-      maxTimeoutSeconds: 60,
+      maxTimeoutSeconds: 600,
       extra: { name: 'USDC', version: '2' },
     };
 
