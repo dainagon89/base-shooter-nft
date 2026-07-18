@@ -30,8 +30,8 @@ export function AdviceButton({ score }: Props) {
       const data1 = await res1.json();
       const accepted = data1.accepts[0];
 
-      const validAfter = Math.floor(Date.now() / 1000) - 1;
-      const validBefore = Math.floor(Date.now() / 1000) + 60;
+      const validAfter = Math.floor(Date.now() / 1000) - 300; // 5分前から有効(時刻ズレ対策)
+      const validBefore = Math.floor(Date.now() / 1000) + 600; // 10分後まで有効
       const nonce = crypto.getRandomValues(new Uint8Array(32));
       const nonceHex = `0x${Array.from(nonce).map(b => b.toString(16).padStart(2, '0')).join('')}` as `0x${string}`;
 
