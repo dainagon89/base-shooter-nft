@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateJwt } from '@coinbase/cdp-sdk/auth';
-import { declareBuilderCodeExtension } from '@x402/extensions';
+// import { declareBuilderCodeExtension } from '@x402/extensions'; // 一時的に無効化(デバッグ中)
 
 const PAYMENT_ADDRESS = process.env.NEXT_PUBLIC_ADVICE_RECIPIENT as string;
 const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
@@ -87,12 +87,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid X-PAYMENT header' }, { status: 400 });
     }
 
-    // facilitatorに渡すPaymentRequirements(Builder Code拡張を付与)
+    // facilitatorに渡すPaymentRequirements
+    // ⚠️ デバッグのため一時的にBuilder Code拡張を外しています
     const paymentRequirements = {
       ...accepted,
-      extensions: {
-        ...declareBuilderCodeExtension(BUILDER_CODE),
-      },
+      // extensions: {
+      //   ...declareBuilderCodeExtension(BUILDER_CODE),
+      // },
     };
 
     const facilitatorBody = {
