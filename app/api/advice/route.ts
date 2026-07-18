@@ -7,7 +7,6 @@ const PAYMENT_ADDRESS = process.env.NEXT_PUBLIC_ADVICE_RECIPIENT as string;
 const FACILITATOR_HOST = 'api.cdp.coinbase.com';
 const FACILITATOR_BASE = `https://${FACILITATOR_HOST}/platform/v2/x402`;
 
-// base.dev / Base Dashboard で発行された、このアプリのBuilder Code
 const BUILDER_CODE = 'bc_kyew96tf';
 
 function generateAdvice(score: number): string {
@@ -18,7 +17,6 @@ function generateAdvice(score: number): string {
   return `スコア${score}点です。自機を動かして敵の前に立つことだけに集中しましょう。NFTミントには100点が必要です！`;
 }
 
-// CDP facilitatorの /verify または /settle を叩く
 async function callFacilitator(path: '/verify' | '/settle', body: unknown) {
   const apiKeyId = process.env.CDP_API_KEY_ID as string;
   const apiKeySecret = process.env.CDP_API_KEY_SECRET as string;
@@ -44,7 +42,10 @@ async function callFacilitator(path: '/verify' | '/settle', body: unknown) {
     body: JSON.stringify(body),
   });
 
-  return res.json();
+  const json = await res.json();
+  // デバッグ用: facilitatorの生レスポンスとHTTPステータスをログに出す
+  console.log(`[facilitator ${path}] status=${res.status}`, JSON.stringify(json));
+  return { httpStatus: res.status, ...json };
 }
 
 export async function GET(req: NextRequest) {
@@ -53,8 +54,8 @@ export async function GET(req: NextRequest) {
 
     const paymentRequirements = {
       scheme: 'exact',
-      network: 'eip155:8453', // Base mainnet (CAIP-2)
-      maxAmountRequired: '1000', // $0.001 USDC (6 decimals)
+      network: 'eip155:8453',
+      maxAmountRequired: '1000',
       resource: `https://${req.headers.get('host')}/api/advice`,
       description: 'Base Shooter NFT - AIアドバイス ($0.001 USDC)',
       mimeType: 'application/json',
@@ -76,17 +77,13 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // X-PAYMENTヘッダー(base64エンコードされたJSON)をデコード
     let paymentPayload;
     try {
-      paymentPayload = JSON.parse(
-        Buffer.from(paymentHeader, 'base64').toString('utf-8')
-      );
+      paymentPayload = JSON.parse(Buffer.from(paymentHeader, 'base64').toString('utf-8'));
     } catch {
       return NextResponse.json({ error: 'Invalid X-PAYMENT header' }, { status: 400 });
     }
 
-    // 1. 署名を検証(verify) — お金はまだ動かない
     const verifyResult = await callFacilitator('/verify', {
       x402Version: 1,
       paymentPayload,
@@ -94,13 +91,13 @@ export async function GET(req: NextRequest) {
     });
 
     if (!verifyResult.isValid) {
+      // ↓ デバッグのため、facilitatorが返した生の内容を丸ごと返す
       return NextResponse.json(
-        { error: 'Invalid payment', reason: verifyResult.invalidReason },
+        { error: 'Invalid payment', debug: verifyResult, sentPaymentPayload: paymentPayload, sentPaymentRequirements: paymentRequirements },
         { status: 402 }
       );
     }
 
-    // 2. オンチェーンで決済を実行(settle) — ここで実際にUSDCが送金される
     const settleResult = await callFacilitator('/settle', {
       x402Version: 1,
       paymentPayload,
@@ -109,7 +106,7 @@ export async function GET(req: NextRequest) {
 
     if (!settleResult.success) {
       return NextResponse.json(
-        { error: 'Settlement failed', reason: settleResult.errorReason },
+        { error: 'Settlement failed', debug: settleResult },
         { status: 402 }
       );
     }
