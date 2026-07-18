@@ -27,7 +27,8 @@ export function AdviceButton({ score }: Props) {
     try {
       const res1 = await fetch(`/api/advice?score=${score}`);
       if (res1.status !== 402) throw new Error('Unexpected response');
-      const { paymentRequirements } = await res1.json();
+      const data1 = await res1.json();
+      const accepted = data1.accepts[0];
 
       const validAfter = Math.floor(Date.now() / 1000) - 1;
       const validBefore = Math.floor(Date.now() / 1000) + 60;
@@ -39,7 +40,7 @@ export function AdviceButton({ score }: Props) {
           name: 'USD Coin',
           version: '2',
           chainId: 8453,
-          verifyingContract: paymentRequirements.asset as `0x${string}`,
+          verifyingContract: accepted.asset as `0x${string}`,
         },
         types: {
           TransferWithAuthorization: [
@@ -54,25 +55,32 @@ export function AdviceButton({ score }: Props) {
         primaryType: 'TransferWithAuthorization',
         message: {
           from: walletClient.account.address,
-          to: paymentRequirements.payTo as `0x${string}`,
-          value: BigInt(paymentRequirements.maxAmountRequired),
+          to: accepted.payTo as `0x${string}`,
+          value: BigInt(accepted.amount),
           validAfter: BigInt(validAfter),
           validBefore: BigInt(validBefore),
           nonce: nonceHex,
         },
       });
 
-      // x402 v2 / CAIP-2形式のペイロード
+      // x402 v2形式のペイロード('accepted' フィールドが必須)
       const payment = btoa(JSON.stringify({
-        x402Version: 1,
-        scheme: 'exact',
-        network: 'eip155:8453', // Base mainnet (CAIP-2形式。サーバー側と一致させる)
+        x402Version: 2,
+        accepted: {
+          scheme: accepted.scheme,
+          network: accepted.network,
+          asset: accepted.asset,
+          amount: accepted.amount,
+          payTo: accepted.payTo,
+          maxTimeoutSeconds: accepted.maxTimeoutSeconds,
+          extra: accepted.extra,
+        },
         payload: {
           signature,
           authorization: {
             from: walletClient.account.address,
-            to: paymentRequirements.payTo,
-            value: paymentRequirements.maxAmountRequired,
+            to: accepted.payTo,
+            value: accepted.amount,
             validAfter: String(validAfter),
             validBefore: String(validBefore),
             nonce: nonceHex,
@@ -86,7 +94,12 @@ export function AdviceButton({ score }: Props) {
 
       if (!res2.ok) {
         const errData = await res2.json().catch(() => null);
-        throw new Error(errData?.reason || errData?.error || '決済の確認に失敗しました');
+        const reason =
+          errData?.debug?.errorMessage ||
+          errData?.debug?.invalidReason ||
+          errData?.error ||
+          '決済の確認に失敗しました';
+        throw new Error(reason);
       }
       const data = await res2.json();
       setAdvice(data.advice);
