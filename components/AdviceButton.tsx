@@ -62,9 +62,11 @@ export function AdviceButton({ score }: Props) {
         },
       });
 
+      // x402 v2 / CAIP-2形式のペイロード
       const payment = btoa(JSON.stringify({
+        x402Version: 1,
         scheme: 'exact',
-        network: 'base',
+        network: 'eip155:8453', // Base mainnet (CAIP-2形式。サーバー側と一致させる)
         payload: {
           signature,
           authorization: {
@@ -82,7 +84,10 @@ export function AdviceButton({ score }: Props) {
         headers: { 'X-PAYMENT': payment },
       });
 
-      if (!res2.ok) throw new Error('決済の確認に失敗しました');
+      if (!res2.ok) {
+        const errData = await res2.json().catch(() => null);
+        throw new Error(errData?.reason || errData?.error || '決済の確認に失敗しました');
+      }
       const data = await res2.json();
       setAdvice(data.advice);
       setPaid(true);
