@@ -37,7 +37,7 @@ export function AdviceButton({ score }: Props) {
 
       const signature = await walletClient.signTypedData({
         domain: {
-          name: 'USD Coin',
+          name: 'USDC',
           version: '2',
           chainId: 8453,
           verifyingContract: accepted.asset as `0x${string}`,
